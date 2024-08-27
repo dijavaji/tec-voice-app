@@ -9,6 +9,7 @@ config = dotenv_values(".env")
 ELEVEN_API_KEY = config["ELEVENLABS_API_KEY"]
 
 #habilitar ambiente source .venv/bin/activate
+#instalar pip install -r requirements.txt
 #ejecutar app python3 main.py
 # 1. Transcribir texto
 # Usamos Whisper: https://github.com/openai/whisper
