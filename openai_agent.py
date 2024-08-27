@@ -36,9 +36,48 @@ def completions(message: str):
     print(result.choices[0].message.content)
     return result
 
+#Langchain ofrece un servicio para observabilidad y evaluación de aplicaciones con LLMs (y otras),
+# podemos probar la version mas simple de una traza en Langsmith
+# Ahora podemos ir a Langsmith y revisar nuestras trazas
+
+# Wrap OpenAI client to trace its inputs/outputs
+ls_client = wrap_openai(client)
+
+# We can decorate any function with @traceable too!
+@traceable
+def ask_chef(message: str) -> str:
+    result = client.chat.completions.create(
+        messages=[
+            {
+                "role": "system",
+                "content": system_prompt,
+            },
+            {
+                "role": "user",
+                "content": message,
+            },
+        ],
+        model=model,
+    )
+    msg = result.choices[0].message.content
+    return msg
+
+#Langchain basico
+#Vamos a construir lo mismo de antes pero con las primitivas de Langchain
+def langchain_chat(message):
+    model = ChatOpenAI(model="gpt-4o")
+    messages = [
+        SystemMessage(system_prompt),
+        HumanMessage(message),
+    ]
+    #result = model.invoke(messages)
+    #return result.content
+    # podemos empezar a combinar bloques, como por ejemplo para extraer el mensaje de la respuesta
+    chain = model | StrOutputParser()
+    return chain.invoke(messages)
 
 if __name__ == '__main__':
     print('PyCharm')
     # print(completions("Tengo huevos, mantequilla, cilantro, y cebollín, qué comida rica puedo hacer?"))
     # print(ask_chef("Tengo un pollo entero y quiero cocinarlo lo más rápido posible. Alguna sugerencia?"))
-    #print(langchain_chat("como preparo un yaguarlocro?"))
+    print(langchain_chat("como preparo un yaguarlocro?"))
