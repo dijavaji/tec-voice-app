@@ -3,11 +3,11 @@ from langsmith.wrappers import wrap_openai
 from langsmith import traceable
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-
-
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, HumanMessagePromptTemplate
+from langchain_core.chat_history import InMemoryChatMessageHistory
+from langchain_core.runnables import RunnableWithMessageHistory
 
 #pip install langsmith==0.1.105
 #pip install openai
@@ -89,9 +89,62 @@ def langchain_prompt_template():
     chain = prompt_template | model | StrOutputParser()
     return chain.invoke({"language": "french", "input": "how do I make tomatoes soup?"})
 
+
+#Hagamos un Chatbot con Memoria
+def chatBot_memory():
+    model = ChatOpenAI(model=modelAi)
+    messages = [
+        SystemMessage("You're a simple companion. You go straight to the point and give very concise answers."),
+        HumanMessage("Hola, me llamo Rodrigo"),
+        AIMessage("Hola Rodrigo!"),
+        HumanMessage("Cómo me llamo?"),
+    ]
+    chain = model | StrOutputParser()
+    return chain.invoke(messages)
+
+#hacemos que sea mas interactivo
+history = [
+    HumanMessage("Hola, me llamo dj"),
+    AIMessage("Hola dj!"),
+]
+
+messages = [
+    SystemMessage("You're a simple companion. You go straight to the point and give very concise answers."),
+    # We need a place for the chat history until "now"
+    MessagesPlaceholder(variable_name="history"),
+    # And then the new user message
+    HumanMessagePromptTemplate.from_template("{user_message}"),
+]
+model = ChatOpenAI(model=modelAi)
+chain = ChatPromptTemplate.from_messages(messages) | model | StrOutputParser()
+
+@traceable
+def chat(message: str) -> str:
+    return chain.invoke({"history": history, "user_message": message})
+
+
+#Pero nosotros tenemos que manejar la memoria "a mano", agregar los mensajes en la historia, etc, etc.
+#Langchain facilita todo eso, envolviendo un Runnable (e.g. una cadena) en algo que inyecta historia,
+# y captura el output para agregarlo a la historia para después: RunnableWithMessageHistory.
+chat_history = InMemoryChatMessageHistory()
+def get_history() -> InMemoryChatMessageHistory:
+    return chat_history
+def get_chat_history(human_msg):
+    prompt = ChatPromptTemplate.from_messages([
+        SystemMessage(system_prompt),
+        MessagesPlaceholder(variable_name="messages"),
+    ])
+
+    base_chain = prompt | model
+    chain = RunnableWithMessageHistory(base_chain, get_history, input_messages_key="messages") | StrOutputParser()
+    return chain.invoke({"messages":human_msg })
+
 if __name__ == '__main__':
     print('PyCharm')
     # print(completions("Tengo huevos, mantequilla, cilantro, y cebollín, qué comida rica puedo hacer?"))
     # print(ask_chef("Tengo un pollo entero y quiero cocinarlo lo más rápido posible. Alguna sugerencia?"))
     #print(langchain_chat("como preparo un yaguarlocro?"))
-    print(langchain_prompt_template())
+    #print(langchain_prompt_template())
+    #print(chat("cual es mi nombre?"))
+    print(get_chat_history([HumanMessage(content="hola, quiero cocinar algo con huevos y papas y cebolla")]))
+    print(get_chat_history([HumanMessage("y si tengo chorizo?"), HumanMessage("Ah no, me equivoqué, no tengo chorizo, pero tengo jamón"), ]))
