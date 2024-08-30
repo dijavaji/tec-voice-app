@@ -8,6 +8,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, HumanMessagePromptTemplate
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.runnables import RunnableWithMessageHistory
+from collections import defaultdict
 
 #pip install langsmith==0.1.105
 #pip install openai
@@ -139,6 +140,36 @@ def get_chat_history(human_msg):
     chain = RunnableWithMessageHistory(base_chain, get_history, input_messages_key="messages") | StrOutputParser()
     return chain.invoke({"messages":human_msg })
 
+#Langchain tiene varias implementaciones de ChatMessageHistory, para guardar historial en bases de datos, en archivos, etc.
+# Explorar esas queda como ejercicio para el lector.
+#Ejemplo de como mantener varias sesiones en paralelo. podemos pasar configuracion como input de la cadena,
+# que podra ser usada por sus componentes. Ejemplo:
+
+histories: dict[str, InMemoryChatMessageHistory] = defaultdict(InMemoryChatMessageHistory)
+def get_history_by_session_id(session_id: str) -> InMemoryChatMessageHistory:
+    return histories[session_id]
+
+prompt = ChatPromptTemplate.from_messages([
+        SystemMessage(system_prompt),
+        MessagesPlaceholder(variable_name="messages"),
+    ])
+
+base_chain = prompt | model
+chain = RunnableWithMessageHistory(base_chain, get_history_by_session_id, input_messages_key="messages") | StrOutputParser()
+@traceable
+def chat(session_id: str, message: str) -> str:
+    config = {
+        "configurable": {
+            "session_id": session_id,
+        }
+    }
+    return chain.invoke(
+        {
+            "messages": [HumanMessage(message)],
+        },
+        config=config,
+    )
+
 if __name__ == '__main__':
     print('PyCharm')
     # print(completions("Tengo huevos, mantequilla, cilantro, y cebollín, qué comida rica puedo hacer?"))
@@ -146,5 +177,10 @@ if __name__ == '__main__':
     #print(langchain_chat("como preparo un yaguarlocro?"))
     #print(langchain_prompt_template())
     #print(chat("cual es mi nombre?"))
-    print(get_chat_history([HumanMessage(content="hola, quiero cocinar algo con huevos y papas y cebolla")]))
-    print(get_chat_history([HumanMessage("y si tengo chorizo?"), HumanMessage("Ah no, me equivoqué, no tengo chorizo, pero tengo jamón"), ]))
+    #tenemos memoria y funciona como un chat interactivo.
+    #print(get_chat_history([HumanMessage(content="hola, quiero cocinar algo con huevos y papas y cebolla")]))
+    #print(get_chat_history([HumanMessage("y si tengo chorizo?"), HumanMessage("Ah no, me equivoqué, no tengo chorizo, pero tengo jamón"), ]))
+    #sesiones en paralelo
+    print(chat("dj", "quiero cocinar pastel de choclo, qué ingredientes necesito comprar?"))
+    print(chat("juan", "tengo platanos, naranjas, y kiwis, como hago tutti-fruti?"))
+    print(chat("dj", "no quedaba carne, lo puedo hacer veggie?"))
